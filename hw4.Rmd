@@ -1,0 +1,425 @@
+---
+title: "CS 422 Section 01"
+output: html_notebook
+author: "Avinash Vellineni - A20406657"
+---
+
+## Problem 2.1
+
+### Locality Sensitive Hashing:
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+library(textreuse)
+library(data.table)
+library(reshape2) 
+```
+
+
+```{r}
+setwd("E:/IIT CHICAGO STUDIES/IIT Chicago semester 2/Data Mining/Assignments/Assignment4")
+#vignette("textreuse-introduction", package = "textreuse")
+#vignette("textreuse-minhash", package = "textreuse")
+files <- list.files("E:/IIT CHICAGO STUDIES/IIT Chicago semester 2/Data Mining/Assignments/Assignment4/hw4.movies", full.names=T)
+corpus <- TextReuseCorpus(files, tokenizer = tokenize_ngrams, n = 5,
+                          keep_tokens = TRUE)
+```
+
+```{r}
+corpus
+```
+
+```{r}
+names(corpus)
+```
+### Question 2.1-A
+
+```{r}
+# Total number of shingles with duplicate shingles
+sum(wordcount(corpus)) 
+```
+
+```{r}
+## Total number of number of columns --- represents 671 users
+cat("Total number of columns in the charachteristic matrix is",length(files))
+```
+
+```{r}
+## Shingles represents the rows of the characteristic matrix
+unique_singles <- unique(unlist(tokens(corpus)))
+cat("Total number of unique shingles is",length(unique_singles))
+```
+
+```{r}
+corpus[["user20"]]
+```
+
+### Question 2.1-B-i
+
+```{r}
+d <- corpus[["user20"]]
+names(d)
+```
+
+```{r}
+wordcount(corpus[["user20"]])
+```
+
+```{r}
+stringr::str_count(d$content,"\n")+1
+```
+
+### Question 2.1-B-ii
+
+```{r}
+## first five Shingles of user 20
+tokens(corpus[["user20"]])[1:5]
+```
+
+
+### Question 2.1-C-i
+
+```{r}
+res <- pairwise_candidates(pairwise_compare(corpus, jaccard_similarity))
+```
+
+```{r}
+sort(res$score, decreasing = TRUE)[1:5]
+```
+
+
+```{r}
+us191_res <-res[which(res$a == "user191"),]
+sort(us191_res$score, decreasing = TRUE)[1:12]
+```
+
+```{r}
+cat("Number of user pairs with a similarity of atleast 0.6 is:",length(which(res$score>=.60)))
+```
+
+### Question 2.1-C-ii
+
+```{r}
+cat("Number of user pairs with a similarity of atleast 0.5 is:",length(which(res$score>=.50)))
+```
+
+### Question 2.1-C-iii
+
+```{r}
+cat("Number of user pairs with a similarity of atleast 0.4 is:",length(which(res$score>=.40)))
+```
+
+### Question 2.1-C-iv
+
+```{r}
+res[which(res$score>=.40),]
+```
+
+### Question 2.1-D-i
+
+```{r}
+lsh_probability(h=120,  b=40, s=0.6)
+minhash <- minhash_generator(n=120, seed=100)
+lsh_threshold(h=120, b=40)
+```
+
+```{r}
+cat("Number of minhashes and bands selected are 120 and 40")
+```
+
+### Question 2.1-D-ii
+
+```{r}
+Min_corpus <- TextReuseCorpus(files, tokenizer = tokenize_ngrams, n = 5,
+                              minhash_func = minhash, keep_tokens = TRUE)
+Min_corpus[["user20"]]
+```
+
+```{r}
+wordcount(Min_corpus[["user20"]])
+```
+
+```{r}
+cat("First five minhashes of the user 20 are:\n")
+minhashes(Min_corpus[["user20"]])[1:5]
+```
+
+### Question 2.1-E-i
+
+```{r}
+buckets <- lsh(Min_corpus, bands = 40)
+candidates <- lsh_candidates(buckets)
+res_lsh <- lsh_compare(candidates, Min_corpus, jaccard_similarity)
+res_lsh
+```
+
+```{r}
+sort(res_lsh$score, decreasing = TRUE)[1:10]
+```
+
+```{r}
+cat("Number of user pairs with a similarity score between 0.6 and 0.5 is:",length(which(res_lsh$score<.60 & res_lsh$score>.50)))
+```
+
+We have 0 number of user pairs with a similarity between 0.6 and 0.5 because in the pair wise cmparison too we never had an user pair with similarity above 0.476. So since minhashes computes similatiry approximately close to original user pair similarity we cant get user pairs between 0.6 and 0.5.
+
+
+### Question 2.1-E-ii
+
+```{r}
+cat("Number of user pairs with a similarity of atleast 0.4 is:",length(which(res_lsh$score>=.40)))
+```
+
+```{r}
+res_lsh[which(res_lsh$score>=.40),]
+```
+
+From the above results we can infer that LSH was able to locate all the candidate pair of users with similarity above 0.4. The number of comparisons as per the bands and hashes choosen are 323 comparisons and for pairwise comparison we had 224785 comparisons.
+
+```{r}
+length(res_lsh$a)
+length(res$a)
+```
+
+### Question 2.1-E-iii
+
+Yes, the obtained user pairs by LSH are same as the ones obtained in the pairwise comparison.
+
+### Question 2.1-E-iv
+```{r}
+length(res_lsh$a)*100/length(res$a)  
+(1-(length(res_lsh$a)/length(res$a)))*100
+```
+
+From the above results we can infer that more than 99% of the work was saved by using LSH method compared to brute fore pairwise comparison method.
+
+
+## Problem 2.2
+
+### Content based Recommendation System:
+
+#### Building User profile:
+
+```{r}
+User_id_obtained <- 20406657%%671
+User_id_obtained
+```
+
+```{r}
+df_movies <- read.csv("E:/IIT CHICAGO STUDIES/IIT Chicago semester 2/Data Mining/Assignments/Assignment4/ml-latest-small/movies.csv",header = T,sep=",",stringsAsFactors = FALSE)
+df_rating <- read.csv("E:/IIT CHICAGO STUDIES/IIT Chicago semester 2/Data Mining/Assignments/Assignment4/ml-latest-small/ratings.csv",header = T,sep=",")
+```
+
+```{r}
+## get the user 205 data from the ratings csv matchig userid
+data_User205 <- subset(df_rating,df_rating[,1]==User_id_obtained)
+```
+
+```{r}
+head(data_User205)
+```
+
+```{r}
+## get the gerne of user 205 matching the movie id
+genres_User205 <- as.data.frame(df_movies[which(df_movies$movieId %in% data_User205$movieId),3], stringsAsFactors=FALSE)
+user205_all <- as.data.frame(df_movies[which(df_movies$movieId %in% data_User205$movieId),], stringsAsFactors=FALSE)
+```
+
+```{r}
+colnames(genres_User205) <- c("genre")
+rownames(genres_User205) <- data_User205$movieId
+```
+
+```{r}
+head(genres_User205)
+```
+
+```{r}
+split205_genre <-setDT(user205_all)[, list(genres = unlist(strsplit(genres, "[|]"))),by=movieId]
+```
+
+```{r}
+split205_genre[, Var := paste0("v", seq_len(.N)), by = movieId]
+```
+
+```{r}
+user205_frame1 <- as.data.frame(dcast.data.table(split205_genre, movieId ~ Var, fill = NA_character_, value.var = "genres"))
+```
+
+```{r}
+user205_frame2 <- data.frame(user205_frame1[,-1], row.names=user205_frame1[,1])
+```
+
+```{r}
+head(user205_frame2)
+```
+
+```{r}
+list_genre <- c("Action", "Adventure", "Animation", "Children", "Comedy", "Crime", "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "IMAX", "Musical", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western", "(no genres listed)")
+```
+
+```{r}
+user205_profile <- matrix(0,nrow(user205_frame2),20)
+```
+
+```{r}
+colnames(user205_profile) <- list_genre
+rownames(user205_profile) <- rownames(user205_frame2)
+```
+
+```{r}
+head(user205_profile)
+```
+
+```{r}
+for (i in 1:nrow(user205_frame2)) {
+  for (j in 1:ncol(user205_frame2)) {
+    user205_profile_col = which(colnames(user205_profile) == user205_frame2[i,j])
+    user205_profile[i,user205_profile_col] <- 1
+  }
+}
+```
+
+
+```{r}
+head(user205_profile)
+```
+
+```{r}
+sapply(user205_profile,as.numeric)
+```
+
+```{r}
+cosine <- function(x, y) {
+  sum(x*y)/(norm(x, type="2") * norm(y, type="2"))
+}
+```
+
+```{r}
+user205_profile_vector <- colMeans(user205_profile)
+user205_profile_vector
+```
+
+#### Building Movie profile:
+
+```{r}
+set.seed(100)
+movies_rand_10_index <- sample(nrow(df_movies),10)
+```
+
+```{r}
+movies_rand_10 <- df_movies[movies_rand_10_index,]
+```
+
+```{r}
+## 10 random user genre
+movies_rand_10[,3]
+```
+
+```{r}
+split_mv_rand_10 <- setDT(movies_rand_10)[, list(genres = unlist(strsplit(genres, "[|]"))),by=movieId]
+split_mv_rand_10[, Var := paste0("v", seq_len(.N)), by = movieId]
+```
+
+```{r}
+movie_10_dd <- as.data.frame(dcast.data.table(split_mv_rand_10, movieId ~ Var, fill = NA_character_, value.var = "genres"))
+```
+
+```{r}
+movie_10_dd_new <- data.frame(movie_10_dd[,-1], row.names=movie_10_dd[,1])
+```
+
+```{r}
+movie_10_dd_new
+```
+
+```{r}
+Movie_profile_matrix <- matrix(0,nrow(movie_10_dd),20)
+```
+
+```{r}
+colnames(Movie_profile_matrix) <- list_genre
+rownames(Movie_profile_matrix) <- rownames(movie_10_dd_new)
+```
+
+```{r}
+Movie_profile_matrix
+```
+
+```{r}
+for (i in 1:nrow(movie_10_dd_new)) {
+  for (j in 1:ncol(movie_10_dd_new)) {
+    user205_column_index = which(colnames(Movie_profile_matrix)== movie_10_dd_new[i,j])
+    Movie_profile_matrix[i,user205_column_index] <- 1
+  }
+}
+```
+
+```{r}
+Movie_profile_matrix
+```
+
+```{r}
+sapply(Movie_profile_matrix,as.numeric)
+```
+
+```{r}
+similarity <- c("0","0","0","0","0","0","0","0","0","0")
+Movie_profile_matrix_new <- cbind(similarity,Movie_profile_matrix)
+```
+
+
+```{r}
+for (i in 1:nrow(Movie_profile_matrix)) {
+  movieid.matrix <-Movie_profile_matrix[i,]
+  similarity = round(cosine(user205_profile_vector,movieid.matrix),3)
+  Movie_profile_matrix_new[i,1] = similarity
+}
+```
+
+```{r}
+Movie_profile_matrix_new[,1]
+```
+
+```{r}
+Movie_profile_matrix_new1 <- Movie_profile_matrix_new[order(Movie_profile_matrix_new[,1], decreasing = TRUE),]
+```
+
+
+```{r}
+final_5 <-as.numeric(rownames(Movie_profile_matrix_new1)[1:5])
+new_mat <- matrix(ncol = 2,nrow = 5)
+colnames(new_mat) <- c("Similarity","Movie Name")
+```
+
+```{r}
+sort_m10 <- movies_rand_10[order(movies_rand_10$movieId, decreasing = FALSE),]
+Movie_profile_matrix_new2 <- Movie_profile_matrix_new[order(as.numeric(rownames(Movie_profile_matrix_new)), decreasing = FALSE),]
+```
+
+```{r}
+res_final_mat1 <-as.data.frame(cbind(Movie_profile_matrix_new2[,1],sort_m10$title),stringsAsFactors = F)
+colnames(res_final_mat1) <- c("Similarity","Movie Name")
+res_final_mat_10 <- res_final_mat1[order(res_final_mat1$Similarity, decreasing = TRUE),]
+res_final_mat_5 <- res_final_mat_10[1:5,]
+```
+
+```{r}
+res_final_mat_10
+```
+
+
+```{r}
+res_final_mat_5
+```
+
+```{r}
+cat("For user ID 205, the following movies are recommended: \n")
+for(i in 1:nrow(res_final_mat_5)){
+  cat("Movie ",res_final_mat_5[i,2],", similarity score ",res_final_mat_5[i,1],"\n")
+}
+```
+
